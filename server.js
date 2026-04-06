@@ -30,17 +30,26 @@ pool.getConnection()
         console.error('Database connection failed: ', err.message);
     });
 
-// GET /api/events/:slug
-app.get('/api/events/:slug', async (req, res) => {
+// GET /api/events/:slugOrId
+app.get('/api/events/:param', async (req, res) => {
     try {
-        const { slug } = req.params;
-        const [rows] = await pool.query('SELECT * FROM events WHERE slug = ?', [slug]);
+        const { param } = req.params;
+        // Try searching by slug first
+        const [slugRows] = await pool.query('SELECT * FROM events WHERE slug = ?', [param]);
 
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'Event not found' });
+        if (slugRows.length > 0) {
+            return res.json(slugRows[0]);
         }
 
-        res.json(rows[0]);
+        // If not found and param is a number, try searching by ID
+        if (!isNaN(param)) {
+            const [idRows] = await pool.query('SELECT * FROM events WHERE id = ?', [parseInt(param)]);
+            if (idRows.length > 0) {
+                return res.json(idRows[0]);
+            }
+        }
+
+        res.status(404).json({ message: 'Event not found' });
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -62,6 +71,7 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/events', async (req, res) => {
     try {
         const { 
+            slug, title, event_date, location, message,
             host_message, ceremony_message, venue_name, time_text, footer_text, template_id, photo_url, invite_type, envelope_text, loader_type, show_map, google_maps_link
         } = req.body;
         
@@ -97,6 +107,7 @@ app.post('/api/events', async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ message: 'Slug already exists' });
         }
+        console.error('POST Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
@@ -122,6 +133,7 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { 
+            slug, title, event_date, location, message,
             host_message, ceremony_message, venue_name, time_text, footer_text, template_id, photo_url, invite_type, envelope_text, loader_type, show_map, google_maps_link
         } = req.body;
         
@@ -133,7 +145,7 @@ app.put('/api/events/:id', async (req, res) => {
             `UPDATE events SET 
                 slug = ?, title = ?, event_date = ?, location = ?, message = ?,
                 host_message = ?, ceremony_message = ?, venue_name = ?, time_text = ?, 
-                footer_text = ?, template_id = ?, photo_url = ?, invite_type = ?, envelope_text = ?, loader_type = ?
+                footer_text = ?, template_id = ?, photo_url = ?, invite_type = ?, envelope_text = ?, loader_type = ?, show_map = ?, google_maps_link = ?
             WHERE id = ?`,
             [
                 slug, title, event_date, location, message,
@@ -156,6 +168,7 @@ app.put('/api/events/:id', async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ message: 'Slug already exists' });
         }
+        console.error('PUT Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
